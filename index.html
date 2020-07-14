@@ -1,0 +1,209 @@
+<html>
+  <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  
+      <!-- Bootstrap CSS -->
+      <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+      <style type="text/css">
+        /* cytoscape graph */
+        #cy2 {
+          height: 100%;
+          width: 100%;
+          background-color: #f9f9f9;
+        }
+      </style>
+  </head>
+  <body>
+    <form class="form-inline" id='form'>
+      <div class="form-group mx-sm-3 mb-2">
+        <label for="word" class="sr-only">用語</label>
+        <input type="text" class="form-control" id="word" placeholder="用語">
+      </div>
+      <button type="submit" id="btn" class="btn btn-primary mb-2">検索</button>
+    </form>
+    <div id="search_status"></div>
+    <div id="cy2"></div>
+    <script src="https://cdn.jsdelivr.net/npm/neo4j-driver"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.2.17/cytoscape.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/dagre@0.7.4/dist/dagre.js"></script>
+    <script src="https://cdn.rawgit.com/cytoscape/cytoscape.js-dagre/1.5.0/cytoscape-dagre.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+    <script>
+      $('#form').on('submit', function(e) {
+        e.preventDefault();
+        let word = $('#word').val();
+        $('#search_status').html("検索中");
+        console.log(word);
+        search(word);
+      });
+
+      function search(word){
+
+        //https://stackoverflow.com/questions/44205354/unable-to-establish-a-neo4j-bolt-driver-connection-in-javascript
+
+        //driveの設定
+        var driver = neo4j.driver(
+          'bolt://127.0.0.1:7687',
+          neo4j.auth.basic('neo4j', 'Test1234')
+        );
+
+        //セッションの生成
+        var session = driver.session()
+        var style = [];
+        var elements = {
+          nodes:[],
+          edges:[]
+        };
+
+        // 検索ワードの作成
+        let query = 'MATCH (w0:Word {lemma: "' + word + '"})<-[r0:SYNONYM]-(s0:Sense)\
+            OPTIONAL MATCH (s0)-[r1:HYPONYM *..5]->(s1:Sense)\
+            OPTIONAL MATCH (s0)<-[r2:HYPONYM *..5]-(s2:Sense)\
+            RETURN *\
+            LIMIT 5000'
+        // Run a Cypher statement, reading the result in a streaming manner as records arrive:
+        session
+          .run(query)
+          .subscribe({
+          onNext: function(record) {
+            const w0 = record.get('w0');
+            const s0 = record.get('s0');
+            const r0 = record.get('r0');
+            const r1 = record.get('r1') != null ? record.get('r1') : null;
+            const s1 = record.get('s1') != null ? record.get('s1') : null;
+            const r2 = record.get('r2') != null ? record.get('r2') : null;
+            const s2 = record.get('s2') != null ? record.get('s2') : null;
+            // 同じdataはつくらない
+
+            // 起点
+            const isExist_w0 = elements.nodes.some(p => p.data.id == w0.identity.low.toString());
+            const isExist_s0 = elements.nodes.some(p => p.data.id == s0.identity.low.toString());
+            const isExist_r0 = elements.edges.some(p => p.data.id == r0.identity.low.toString());
+            if (!isExist_w0) {
+              console.log("W0: {id: " + w0.identity.low + ", name: " + w0.properties.lemma + ", label: 'Word0'}");
+              elements.nodes.push({
+                     data: {id: w0.identity.low.toString(), name: w0.properties.lemma, label: 'Word0', classes: 'words'}
+                 })
+            }
+            if (!isExist_s0) {
+              elements.nodes.push({
+                     data: {id: s0.identity.low.toString(), name: s0.properties.words, label: '同義語', classes: 'words'}
+                 })
+            }
+            if (!isExist_r0) {
+              elements.edges.push({
+                     data: {id: r0.identity.low.toString(), source: r0.start.low.toString(), target: r0.end.low.toString(), relationship: '同義'}
+                 })
+            }
+
+            // 下位語
+            if (r1 != null && s1 != null) {
+              const isExist_s1 = elements.nodes.some(p => p.data.id == s1.identity.low.toString());
+              const isExist_r1 = r1.map(r => elements.edges.some(p => p.data.id == r.identity.low.toString()));
+              if (!isExist_s1) {
+              elements.nodes.push({
+                     data: {id: s1.identity.low.toString(), name: s1.properties.words, label: '下位語', classes: 'words'}
+                 })
+              }
+              isExist_r1.forEach((element, index, array) => {
+              if (!element) {
+                elements.edges.push({
+                     data: {id: r1[index].identity.low.toString(), source: r1[index].start.low.toString(), target: r1[index].end.low.toString(), relationship: '下位'}
+                 })
+                }
+              });
+            }
+
+            // 上位語
+            if (r2 != null && s2 != null) {
+              const isExist_s2 = elements.nodes.some(p => p.data.id == s2.identity.low.toString());
+              const isExist_r2 = r2.map(r => elements.edges.some(p => p.data.id == r.identity.low.toString()));
+              if (!isExist_s2) {
+              elements.nodes.push({
+                     data: {id: s2.identity.low.toString(), name: s2.properties.words, label: '上位語', classes: 'words'}
+                 })
+              }
+              isExist_r2.forEach((element, index, array) => {
+              if (!element) {
+                elements.edges.push({
+                     data: {id: r2[index].identity.low.toString(), source: r2[index].start.low.toString(), target: r2[index].end.low.toString(), relationship: '上位'}
+                 })
+                }
+              });
+            }
+
+            //内容要素を表現するCSS
+            var style = [
+              //セレクターで拾いた内容要素が 指定したCSSを適用する
+              { selector: 'node[label = "Word0"]',
+                style: {
+                 'background-color': '#FFA500',
+                 'label': 'data(name)',
+                 'text-wrap': 'wrap',
+                 'text-max-width': 30
+                }
+              },
+              { selector: 'node[label = "同義語"]',
+                style: {
+                 'background-color': '#FF4500',
+                 'label': 'data(name)',
+                 'text-wrap': 'wrap',
+                 'text-max-width': 30
+                }
+              },
+              { selector: 'node[label = "上位語"]',
+                style: {
+                 'background-color': '#d8eb34',
+                 'label': 'data(name)',
+                 'text-wrap': 'wrap',
+                 'text-max-width': 30
+                }
+              },
+              { selector: 'node[label = "下位語"]', 
+                style: {
+                 'background-color': '#34a8eb',
+                 'label': 'data(name)',
+                 'text-wrap': 'wrap', 
+                 'text-max-width': 30
+                }
+              },
+              { selector: 'edge', 
+                style: {
+                  'content': 'data(relationship)',
+                  'target-arrow-shape': 'triangle'
+                }
+              } 
+            ]
+
+            //レイアウト設定
+            var layout = {
+              name : "dagre",
+              padding: 5
+            }
+
+            // Cytoscapeオブジェクト初期化。
+            var cy2 = cytoscape({ 
+              // containerがHTML内の「cy2」DOM要素に指定
+              container: document.getElementById('cy2'),
+              elements: elements,
+              style: style,
+              layout: layout,
+            });
+          },
+          onCompleted: function() {
+            session.close()
+            driver.close()
+            $('#search_status').html("完了");
+          },
+          onError: function(error) {
+            console.log(error)
+          }
+        })
+      }
+    </script>
+</body>
+
+</html>

@@ -1,9 +1,8 @@
-# docker-neo4j
+# WordNetとNeo4jを用いた上位下位語検索
 
 ## 起動方法
 
 ```shell
-docker-compose -f docker-compose.yml build
 docker-compose -f docker-compose.yml up
 ```
 
@@ -29,3 +28,7 @@ core1_1  | 2019-10-07 08:21:45.738+0000 INFO  Bolt enabled on 0.0.0.0:7687.
 core1_1  | 2019-10-07 08:21:48.285+0000 INFO  Started.
 core1_1  | 2019-10-07 08:21:49.784+0000 INFO  Remote interface available at http://localhost:7474/
 ```
+
+その他のドキュメント
+
+[日本語WordNetを用いた上位下位語スパイダーネット](https://polinc.atlassian.net/wiki/spaces/RD/pages/110198863/WordNet)

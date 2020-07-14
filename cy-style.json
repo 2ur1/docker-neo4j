@@ -1,0 +1,40 @@
+[
+    { 
+        "selector": "node[label = 'Word0']",
+        "style": {
+            "label": "data(name)",
+            "background-color" : "#FFA500"
+        }
+    },
+    { 
+        "selector": "node[label = '同義語']",
+        "style": {
+            "label": "data(name)",
+            "background-color" : "#FF4500",
+            "text-max-width": 80
+        }
+    },
+    { 
+        "selector": "node[label = '上位語']",
+        "style": {
+            "label": "data(name)",
+            "background-color" : "#d8eb34",
+            "text-max-width": 80
+        }
+    },
+    { 
+        "selector": "node[label = '下位語']",
+        "style": {
+            "label": "data(name)",
+            "background-color" : "#34a8eb",
+            "text-max-width": 80
+        }
+    },
+    {
+        "selector": "edge",
+        "style": {
+          "label": "data(relationship)",
+          "width": 3
+        }
+      }
+  ]
